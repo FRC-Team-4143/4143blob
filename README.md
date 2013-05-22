@@ -11,7 +11,13 @@ Press 'q' to quit.
 
 Requires PCL and a Kinect sensor.
 
+to compile:
+cd build
+cmake ..
+make
+
 Next steps are to verify the ground plane is actually a reasonable plane. Determine which of the lines are reasonable verticle bars of the pyramid.  Are they 60 degrees to the ground plane?  Determine how far the camera is from the point where the verticle bar intersects the ground plane.  Determine which bars are horizontal bars.  Determine the angle of the camera to the pyramid.
 
-[http://www.pointclouds.org]
-[http://www.usfirst.org/roboticsprograms/frc]4143pclpyramid
+Links:
+http://www.pointclouds.org
+http://www.usfirst.org/roboticsprograms/frc
