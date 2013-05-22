@@ -1,0 +1,8 @@
+cmake_minimum_required(VERSION 2.6 FATAL_ERROR)
+project(4143pclpyramid)
+find_package(PCL 1.7 REQUIRED COMPONENTS common io segmentation visualization)
+include_directories(${PCL_INCLUDE_DIRS})
+link_directories(${PCL_LIBRARY_DIRS})
+add_definitions(${PCL_DEFINITIONS})
+add_executable(4143pclpyramid 4143pclpyramid.cpp)
+target_link_libraries(4143pclpyramid ${PCL_LIBRARIES} )
