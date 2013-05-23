@@ -1,8 +1,10 @@
+#include <iostream>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 #include <pcl/io/openni_grabber.h>
 #include <pcl/visualization/cloud_viewer.h>
 #include <pcl/io/openni_camera/openni_driver.h>
+#include <pcl/io/pcd_io.h>
 #include <pcl/console/parse.h>
 #include <pcl/sample_consensus/method_types.h>
 #include <pcl/sample_consensus/model_types.h>
@@ -44,18 +46,21 @@ class PclPyramid
       line_extract.setNegative (true); // remove line
 
       viewer.registerKeyboardCallback(&PclPyramid::keyboard_callback, *this , 0);
+      saveCloud = false;
+      filesSaved = 0;
     }
 
     void
     keyboard_callback (const pcl::visualization::KeyboardEvent& event, void *)
     {
+	cerr << "keyboard_callback" << endl;
 	if (event.keyUp ())
 	{
 		switch (event.getKeyCode())
 		{
-			case 'b':
-			case 'B':
-				// do something
+			case 's':
+			case 'S':
+				saveCloud = true;
 				break;
 			case 'v':
 			case 'V':
@@ -148,6 +153,21 @@ class PclPyramid
 		<< endl;
 	}
 
+      if (saveCloud)
+	{
+        std::stringstream stream;
+        stream << "inputCloud" << filesSaved << ".pcd";
+        std::string filename = stream.str();
+        if (pcl::io::savePCDFile(filename, *temp_cloud, true) == 0)
+        {
+            filesSaved++;
+            cout << "Saved " << filename << "." << endl;
+        }
+        else PCL_ERROR("Problem saving %s.\n", filename.c_str());
+        
+        saveCloud = false;
+        }
+
 
       return (temp_cloud);  // return colored cloud
     }
@@ -184,6 +204,8 @@ class PclPyramid
     std::string device_id_;
     boost::mutex mtx_;
     CloudConstPtr cloud_;
+    bool saveCloud;
+    unsigned int filesSaved;
 };
 
 void
