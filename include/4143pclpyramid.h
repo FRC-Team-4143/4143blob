@@ -1,0 +1,12 @@
+#ifndef PCLPYRAMID_HPP_INCLUDED
+#define PCLPYRAMID_HPP_INCLUDED
+
+#define PLANE_THRESHOLD .05f
+#define LINE_THRESHOLD .1f
+#define MAX_LINES 10
+#define MIN_CLOUD_POINTS 10
+#define VOXEL_SIZE .01f
+#define MAX_ITERATIONS 1000
+#define MAX_Z_DEPTH 3.0f
+
+#endif
