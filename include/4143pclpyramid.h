@@ -2,11 +2,12 @@
 #define PCLPYRAMID_HPP_INCLUDED
 
 #define PLANE_THRESHOLD .05f
-#define LINE_THRESHOLD .1f
-#define MAX_LINES 10
-#define MIN_CLOUD_POINTS 10
+#define LINE_THRESHOLD .05f
+#define MAX_LINES 12
+#define MIN_CLOUD_POINTS 100
 #define VOXEL_SIZE .01f
 #define MAX_ITERATIONS 1000
-#define MAX_Z_DEPTH 3.0f
+#define MAX_Z_DEPTH 4.0f
+#define FRAMES_PER_SEC 1
 
 #endif

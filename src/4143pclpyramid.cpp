@@ -12,6 +12,7 @@
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/filters/extract_indices.h>
 #include <4143pclpyramid.h>
+#include <pcl/common/time.h>
 
 
 class PclPyramid
@@ -35,15 +36,11 @@ class PclPyramid
       plane_seg.setMaxIterations (MAX_ITERATIONS);
       plane_seg.setDistanceThreshold (PLANE_THRESHOLD);
 
-      plane_extract.setNegative (true);  // remove plane
-
       line_seg.setOptimizeCoefficients (true);
       line_seg.setModelType (pcl::SACMODEL_LINE);
       line_seg.setMethodType (pcl::SAC_RANSAC);
       line_seg.setMaxIterations (MAX_ITERATIONS);
       line_seg.setDistanceThreshold (LINE_THRESHOLD); // find line within ...
-
-      line_extract.setNegative (true); // remove line
 
       viewer.registerKeyboardCallback(&PclPyramid::keyboard_callback, *this , 0);
       saveCloud = false;
@@ -73,7 +70,12 @@ class PclPyramid
     void 
     cloud_cb_ (const CloudConstPtr& cloud)
     {
-      set (cloud);
+	static double last = pcl::getTime();
+	double now = pcl::getTime();
+	if(now >= last + (1/FRAMES_PER_SEC)) {
+		set (cloud);
+		last = now;
+	}
     }
 
     void
@@ -92,9 +94,15 @@ class PclPyramid
       CloudPtr temp_cloud (new Cloud);
       CloudPtr temp_cloud2 (new Cloud);
       CloudPtr temp_cloud3 (new Cloud);
+      CloudPtr temp_cloud4 (new Cloud);
+      CloudPtr temp_cloud5 (new Cloud);
+      CloudConstPtr empty_cloud;
 
+      cerr << "cloud size orig: " << cloud_->size() << endl;
       voxel_grid.setInputCloud (cloud_);
       voxel_grid.filter (*temp_cloud);  // filter cloud for z depth
+
+      cerr << "cloud size postzfilter: " << temp_cloud->size() << endl;
 
       pcl::ModelCoefficients::Ptr planecoefficients (new pcl::ModelCoefficients ());
       pcl::PointIndices::Ptr plane_inliers (new pcl::PointIndices ());
@@ -103,12 +111,20 @@ class PclPyramid
       model.values.resize (6);
       pcl::PointIndices::Ptr line_inliers (new pcl::PointIndices ());
 
-      plane_seg.setInputCloud (temp_cloud);
-      plane_seg.segment (*plane_inliers, *planecoefficients); // find plane
+	if(temp_cloud->size() > MIN_CLOUD_POINTS) {
+      		plane_seg.setInputCloud (temp_cloud);
+      		plane_seg.segment (*plane_inliers, *planecoefficients); // find plane
+	}
+
+      cerr << "plane inliers size: " << plane_inliers->indices.size() << endl;
 
       for(size_t i = 0; i < plane_inliers->indices.size (); ++i)
-	temp_cloud->points[plane_inliers->indices[i]].g = 255; 
+	{
+		temp_cloud->points[plane_inliers->indices[i]].r = 0; 
+		temp_cloud->points[plane_inliers->indices[i]].g = 255; 
+		temp_cloud->points[plane_inliers->indices[i]].b = 0; 
 		// tint found plane green for ground
+	}
 
       cerr << "planecoeffs: " 
 	<< planecoefficients->values[0]  << " "
@@ -117,27 +133,49 @@ class PclPyramid
 	<< planecoefficients->values[3]  << " "
 	<< endl;
 
+      plane_extract.setNegative (true); 
       plane_extract.setInputCloud (temp_cloud);
       plane_extract.setIndices (plane_inliers);
       plane_extract.filter (*temp_cloud2);   // remove plane
+      plane_extract.setNegative (false); 
+      plane_extract.filter (*temp_cloud4);   // only plane
+      *temp_cloud5 += *temp_cloud4;
 
 
 	for(size_t j = 0 ; j < MAX_LINES && temp_cloud2->size() > MIN_CLOUD_POINTS; j++) 
 		// look for x lines until cloud gets too small
 	{
+		cerr << "cloud size: " << temp_cloud2->size() << endl;
 
       		line_seg.setInputCloud (temp_cloud2);
       		line_seg.segment (*line_inliers, model); // find line
+
+		cerr << "line inliears size: " << line_inliers->indices.size() << endl;
+
+		if(line_inliers->indices.size() < MIN_CLOUD_POINTS)
+			break;
+
       		linecoefficients1.push_back (model);  // store line coeffs
 
-      		for(size_t i = 0; i < line_inliers->indices.size (); ++i)
-			temp_cloud->points[ line_inliers->indices[i]].r = 255; 
-				// tint found line red
-
+		line_extract.setNegative (true); 
       		line_extract.setInputCloud (temp_cloud2);
       		line_extract.setIndices (line_inliers);
-      		line_extract.filter (*temp_cloud3);
-      		temp_cloud2 = temp_cloud3;	// remove line 
+      		line_extract.filter (*temp_cloud3);  // remove plane
+		line_extract.setNegative (false); 
+      		line_extract.filter (*temp_cloud4);  // only plane
+      		for(size_t i = 0; i < temp_cloud4->size (); ++i) {
+			temp_cloud4->points[i].g = 0; 
+			if(j%2) {
+				temp_cloud4->points[i].r = 255-j*int(255/MAX_LINES); 
+				temp_cloud4->points[i].b = 0+j*int(255/MAX_LINES); 
+			} else {
+				temp_cloud4->points[i].b = 255-j*int(255/MAX_LINES); 
+				temp_cloud4->points[i].r = 0+j*int(255/MAX_LINES); 
+			}
+		}
+		*temp_cloud5 += *temp_cloud4;	// add line to ground
+		
+		temp_cloud2.swap ( temp_cloud3); // remove line
 
 	}
 
@@ -168,8 +206,8 @@ class PclPyramid
         saveCloud = false;
         }
 
-
-      return (temp_cloud);  // return colored cloud
+      empty_cloud.swap(cloud_);  // set cloud_ to null
+      return (temp_cloud5);  // return colored cloud
     }
 
     void
@@ -188,6 +226,7 @@ class PclPyramid
         {
           //the call to get() sets the cloud_ to null;
           viewer.showCloud (get ());
+	  boost::this_thread::sleep (boost::posix_time::microseconds (10000));
         }
       }
 
