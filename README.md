@@ -4,10 +4,11 @@
 Uses Point Cloud Library and a Microsoft Kinect to detect and determine orientation and distance to the 2013 FRC pyramid game piece.
 
 Currently it detects one plane as the ground and colors those points green.
-Then it detects up to 10 bars (lines) of the pyramid and colors those red.
-It also pipes out line coefficients for found lines.
+Then it detects up to 12 bars (lines) of the pyramid and colors those.
+It also pipes out line coefficients for found lines and ground plane.
 
 Press 'q' to quit.
+Press 's' to save .pcd cloud file.
 
 Requires PCL and a Kinect sensor.
 
