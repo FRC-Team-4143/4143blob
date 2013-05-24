@@ -226,8 +226,8 @@ class PclPyramid
         {
           //the call to get() sets the cloud_ to null;
           viewer.showCloud (get ());
-	  boost::this_thread::sleep (boost::posix_time::microseconds (10000));
         }
+	boost::this_thread::sleep (boost::posix_time::microseconds (10000));
       }
 
       interface->stop ();
