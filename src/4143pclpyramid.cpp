@@ -44,24 +44,24 @@ class PclPyramid
 
       viewer.registerKeyboardCallback(&PclPyramid::keyboard_callback, *this , 0);
       saveCloud = false;
+      toggleView = 0;
       filesSaved = 0;
     }
 
     void
     keyboard_callback (const pcl::visualization::KeyboardEvent& event, void *)
     {
-	cerr << "keyboard_callback" << endl;
 	if (event.keyUp ())
 	{
 		switch (event.getKeyCode())
 		{
 			case 's':
 			case 'S':
-				saveCloud = true;
+				saveCloud = true; // save pcd file
 				break;
-			case 'v':
-			case 'V':
-				// do something else
+			case 't':
+			case 'T':
+				++toggleView  %= 2; 
 				break;
 		}
 	}	
@@ -118,14 +118,6 @@ class PclPyramid
 
       cerr << "plane inliers size: " << plane_inliers->indices.size() << endl;
 
-      for(size_t i = 0; i < plane_inliers->indices.size (); ++i)
-	{
-		temp_cloud->points[plane_inliers->indices[i]].r = 0; 
-		temp_cloud->points[plane_inliers->indices[i]].g = 255; 
-		temp_cloud->points[plane_inliers->indices[i]].b = 0; 
-		// tint found plane green for ground
-	}
-
       cerr << "planecoeffs: " 
 	<< planecoefficients->values[0]  << " "
 	<< planecoefficients->values[1]  << " "
@@ -138,9 +130,15 @@ class PclPyramid
       plane_extract.setIndices (plane_inliers);
       plane_extract.filter (*temp_cloud2);   // remove plane
       plane_extract.setNegative (false); 
-      plane_extract.filter (*temp_cloud4);   // only plane
-      *temp_cloud5 += *temp_cloud4;
+      plane_extract.filter (*temp_cloud5);   // only plane
 
+      for(size_t i = 0; i < temp_cloud5->size (); ++i)
+	{
+		temp_cloud5->points[i].r = 0; 
+		temp_cloud5->points[i].g = 255; 
+		temp_cloud5->points[i].b = 0; 
+		// tint found plane green for ground
+	}
 
 	for(size_t j = 0 ; j < MAX_LINES && temp_cloud2->size() > MIN_CLOUD_POINTS; j++) 
 		// look for x lines until cloud gets too small
@@ -207,7 +205,11 @@ class PclPyramid
         }
 
       empty_cloud.swap(cloud_);  // set cloud_ to null
-      return (temp_cloud5);  // return colored cloud
+
+      if(toggleView == 1) 
+      	return (temp_cloud);  // return orig cloud
+      else
+	return (temp_cloud5); // return colored cloud
     }
 
     void
@@ -227,6 +229,7 @@ class PclPyramid
           //the call to get() sets the cloud_ to null;
           viewer.showCloud (get ());
         }
+	//viewer.spinOnce(100);
 	boost::this_thread::sleep (boost::posix_time::microseconds (10000));
       }
 
@@ -243,7 +246,8 @@ class PclPyramid
     std::string device_id_;
     boost::mutex mtx_;
     CloudConstPtr cloud_;
-    bool saveCloud;
+    bool saveCloud; 
+    unsigned int toggleView;
     unsigned int filesSaved;
 };
 
