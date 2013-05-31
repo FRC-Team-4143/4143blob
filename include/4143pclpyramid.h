@@ -57,7 +57,6 @@ class PclPyramid
 		bool save_cloud_; 
 		unsigned int toggle_view_;
 		unsigned int files_saved_;
-		bool quit_;
 };
 
 #endif

@@ -16,8 +16,7 @@ PclPyramid::PclPyramid (const string& device_id) :
   device_id_ (device_id),
   save_cloud_ (false),
   toggle_view_ (0),
-  files_saved_ (0),
-  quit_ (false)
+  files_saved_ (0)
 {
   voxel_grid_.setFilterFieldName ("z");
   voxel_grid_.setFilterLimits (0.0f, MAX_Z_DEPTH); // filter anything past 3 meters
@@ -45,10 +44,6 @@ PclPyramid::keyboardCallback (const visualization::KeyboardEvent& event, void *)
   {
     switch (event.getKeyCode ())
     {
-    case 'q':
-    case 'Q':
-      quit_ = true;
-      break;
     case 's':
     case 'S':
       save_cloud_ = true; // save pcd file
@@ -244,8 +239,9 @@ PclPyramid::openFile(string file)
   if (result != 0)
     return result;
 
-  while (!quit_)
+  while (!viewer_.wasStopped ())
     viewer_.showCloud (cloud);
+  return 0;
 }
 
 void
@@ -287,7 +283,9 @@ main (int argc, char ** argv)
   PclPyramid pyramid (arg);
   string file;
   if (console::parse(argc, argv, "-file", file) != -1)
+  {
     pyramid.openFile(file);
+  }
   else
   {
     openni_wrapper::OpenNIDriver& driver = openni_wrapper::OpenNIDriver::getInstance ();
