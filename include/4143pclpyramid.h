@@ -28,10 +28,10 @@ class PclPyramid
 		virtual ~PclPyramid () { };
 
 		void
-		keyboard_callback (const pcl::visualization::KeyboardEvent& event, void*);
+		keyboardCallback (const pcl::visualization::KeyboardEvent& event, void*);
 
 		void
-		cloud_cb (const CloudConstPtr& cloud);
+		cloudCallback (const CloudConstPtr& cloud);
 
 		void
 		set (const CloudConstPtr& cloud);
@@ -41,6 +41,9 @@ class PclPyramid
 
 		void
 		run ();
+
+		int
+		openFile (std::string file);
 
 		pcl::visualization::CloudViewer viewer_;
 		pcl::VoxelGrid<pcl::PointXYZRGBA> voxel_grid_;
@@ -54,6 +57,7 @@ class PclPyramid
 		bool save_cloud_; 
 		unsigned int toggle_view_;
 		unsigned int files_saved_;
+		bool quit_;
 };
 
 #endif

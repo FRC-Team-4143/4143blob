@@ -1,12 +1,12 @@
 #include <4143pclpyramid.h>
 #include <iostream>
+#include <pcl/common/time.h>
+#include <pcl/console/parse.h>
 #include <pcl/io/openni_grabber.h>
 #include <pcl/io/openni_camera/openni_driver.h>
 #include <pcl/io/pcd_io.h>
-#include <pcl/console/parse.h>
 #include <pcl/sample_consensus/method_types.h>
 #include <pcl/sample_consensus/model_types.h>
-#include <pcl/common/time.h>
 
 using namespace pcl;
 using namespace std;
@@ -16,7 +16,8 @@ PclPyramid::PclPyramid (const string& device_id) :
   device_id_ (device_id),
   save_cloud_ (false),
   toggle_view_ (0),
-  files_saved_ (0)
+  files_saved_ (0),
+  quit_ (false)
 {
   voxel_grid_.setFilterFieldName ("z");
   voxel_grid_.setFilterLimits (0.0f, MAX_Z_DEPTH); // filter anything past 3 meters
@@ -34,16 +35,20 @@ PclPyramid::PclPyramid (const string& device_id) :
   line_seg_.setMaxIterations (MAX_ITERATIONS);
   line_seg_.setDistanceThreshold (LINE_THRESHOLD); // find line within ...
 
-  viewer_.registerKeyboardCallback (&PclPyramid::keyboard_callback, *this , 0);
+  viewer_.registerKeyboardCallback (&PclPyramid::keyboardCallback, *this , 0);
 }
 
 void
-PclPyramid::keyboard_callback (const visualization::KeyboardEvent& event, void *)
+PclPyramid::keyboardCallback (const visualization::KeyboardEvent& event, void *)
 {
   if (event.keyUp ())
   {
     switch (event.getKeyCode ())
     {
+    case 'q':
+    case 'Q':
+      quit_ = true;
+      break;
     case 's':
     case 'S':
       save_cloud_ = true; // save pcd file
@@ -57,7 +62,7 @@ PclPyramid::keyboard_callback (const visualization::KeyboardEvent& event, void *
 }
 
 void
-PclPyramid::cloud_cb (const CloudConstPtr& cloud)
+PclPyramid::cloudCallback (const CloudConstPtr& cloud)
 {
   static double last = getTime ();
   double now = getTime ();
@@ -212,7 +217,7 @@ PclPyramid::run ()
 {
   Grabber* interface = new OpenNIGrabber (device_id_);
 
-  boost::function<void (const CloudConstPtr&)> f = boost::bind (&PclPyramid::cloud_cb, this, _1);
+  boost::function<void (const CloudConstPtr&)> f = boost::bind (&PclPyramid::cloudCallback, this, _1);
   boost::signals2::connection c = interface->registerCallback (f);
   
   interface->start ();
@@ -229,6 +234,18 @@ PclPyramid::run ()
   }
 
   interface->stop ();
+}
+
+int
+PclPyramid::openFile(string file)
+{
+  CloudPtr cloud (new Cloud);
+  int result = io::loadPCDFile(file, *cloud);
+  if (result != 0)
+    return result;
+
+  while (!quit_)
+    viewer_.showCloud (cloud);
 }
 
 void
@@ -257,9 +274,9 @@ main (int argc, char ** argv)
   string arg;
 
   if (argv[1] == NULL)
-    arg+="#1";
+    arg += "#1";
   else
-    arg+=argv[1];
+    arg += argv[1];
   
   if (arg == "--help" || arg == "-h")
   {
@@ -267,26 +284,29 @@ main (int argc, char ** argv)
     return (1);
   }
 
-  //double threshold = 0.05;
-  //console::parse_argument (argc, argv, "-thresh", threshold);
-
-  openni_wrapper::OpenNIDriver& driver = openni_wrapper::OpenNIDriver::getInstance ();
-  if (driver.getNumberDevices () == 0)
-  {
-    cout << "No devices connected." << endl;
-    return (1);
-  }
-
-  OpenNIGrabber grabber (arg);
-  if (grabber.providesCallback<OpenNIGrabber::sig_cb_openni_point_cloud_rgba> ())
-  {
-    PclPyramid v (arg);
-    v.run ();
-  }
+  PclPyramid pyramid (arg);
+  string file;
+  if (console::parse(argc, argv, "-file", file) != -1)
+    pyramid.openFile(file);
   else
   {
-    cerr << "not color device" << endl;
-    return (1);
+    openni_wrapper::OpenNIDriver& driver = openni_wrapper::OpenNIDriver::getInstance ();
+    if (driver.getNumberDevices () == 0)
+    {
+      cout << "No devices connected." << endl;
+      return (1);
+    }
+  
+    OpenNIGrabber grabber (arg);
+    if (grabber.providesCallback<OpenNIGrabber::sig_cb_openni_point_cloud_rgba> ())
+    {
+      pyramid.run ();
+    }
+    else
+    {
+      cerr << "not color device" << endl;
+      return (1);
+    }
   }
 
   return (0);
