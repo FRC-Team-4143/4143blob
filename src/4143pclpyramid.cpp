@@ -2,7 +2,11 @@
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 #include <pcl/io/openni_grabber.h>
+
+#ifndef NOVIEWER
 #include <pcl/visualization/cloud_viewer.h>
+#endif
+
 #include <pcl/io/openni_camera/openni_driver.h>
 #include <pcl/io/pcd_io.h>
 #include <pcl/console/parse.h>
@@ -22,9 +26,11 @@ class PclPyramid
   typedef typename Cloud::Ptr CloudPtr;
   typedef typename Cloud::ConstPtr CloudConstPtr;
 
-  PclPyramid (const std::string& device_id = "")
-      : viewer ("4143 pcl pyramid"),
-      device_id_ (device_id)
+  PclPyramid (const std::string& device_id = "", const std::string& filename = "" ) :
+#ifndef NOVIEWER
+      viewer ("4143 pcl pyramid"),
+#endif
+      device_id_ (device_id) , filename_ (filename)
       {
         voxel_grid.setFilterFieldName ("z");
         voxel_grid.setFilterLimits (0.0f, MAX_Z_DEPTH); // filter anything past 3 meters
@@ -42,7 +48,9 @@ class PclPyramid
         line_seg.setMaxIterations (MAX_ITERATIONS);
         line_seg.setDistanceThreshold (LINE_THRESHOLD); // find line within ...
 
+#ifndef NOVIEWER
         viewer.registerKeyboardCallback(&PclPyramid::keyboard_callback, *this , 0);
+#endif
         saveCloud = false;
         toggleView = 0;
         filesSaved = 0;
@@ -227,35 +235,68 @@ class PclPyramid
   void
       run ()
       {
-        pcl::Grabber* interface = new pcl::OpenNIGrabber (device_id_);
+        CloudPtr filecloud;
+        pcl::Grabber* interface;
+        if(filename_.empty()) {
+          interface = new pcl::OpenNIGrabber (device_id_);
 
-        boost::function<void (const CloudConstPtr&)> f = boost::bind (&PclPyramid::cloud_cb_, this, _1);
-        boost::signals2::connection c = interface->registerCallback (f);
+          boost::function<void (const CloudConstPtr&)> f = boost::bind (&PclPyramid::cloud_cb_, this, _1);
+          boost::signals2::connection c = interface->registerCallback (f);
 
-        interface->start ();
+          interface->start ();
+        }
+        else 
+        {
+          pcd_cloud.reset (new sensor_msgs::PointCloud2);
+          if(pcd.read (filename_, *pcd_cloud, origin, orientation, version) < 0)
+            cerr << "file read failed" << endl;
+          filecloud.reset (new Cloud);
+          pcl::fromROSMsg(*pcd_cloud, *filecloud);
+          cloud_  = filecloud;
+        }
 
-        while (!viewer.wasStopped ())
+        while (
+#ifndef NOVIEWER
+              !viewer.wasStopped () 
+#else 
+              TRUE
+#endif
+              )
         {
           if (cloud_)
           {
             //the call to get() sets the cloud_ to null;
+#ifndef NOVIEWER
             viewer.showCloud (get ());
+#else
+            get();
+#endif
           }
           //viewer.spinOnce(100);
           boost::this_thread::sleep (boost::posix_time::microseconds (10000));
         }
 
-        interface->stop ();
+        if(interface)
+          interface->stop ();
       }
 
+#ifndef NOVIEWER
   pcl::visualization::CloudViewer viewer;
+#endif
   pcl::VoxelGrid<pcl::PointXYZRGBA> voxel_grid;
   pcl::SACSegmentation<pcl::PointXYZRGBA> plane_seg;
   pcl::SACSegmentation<pcl::PointXYZRGBA> line_seg;
   pcl::ExtractIndices<pcl::PointXYZRGBA> plane_extract;
   pcl::ExtractIndices<pcl::PointXYZRGBA> line_extract;
 
+  pcl::PCDReader pcd;
+  Eigen::Vector4f origin;
+  Eigen::Quaternionf orientation;
+  int version; 
+  sensor_msgs::PointCloud2::Ptr pcd_cloud;
+
   std::string device_id_;
+  std::string filename_;
   boost::mutex mtx_;
   CloudConstPtr cloud_;
   bool saveCloud; 
@@ -287,12 +328,10 @@ usage (char ** argv)
 int 
 main (int argc, char ** argv)
 {
-  std::string arg;
+  std::string filename;
+  std::string device;
 
-  if(argv[1] == NULL) arg+="#1";
-  else arg+=argv[1];
-
-  if (arg == "--help" || arg == "-h")
+  if (argv[1] == "--help" || argv[1] == "-h")
   {
     usage (argv);
     return 1;
@@ -301,24 +340,25 @@ main (int argc, char ** argv)
   //double threshold = 0.05;
   //pcl::console::parse_argument (argc, argv, "-thresh", threshold);
 
+  pcl::console::parse_argument (argc, argv, "-file", filename);
+
+  if(filename.empty() == FALSE)
+    cout << "filename: " << filename << endl;
+
+  pcl::console::parse_argument (argc, argv, "-device", device);
+
+  if(device.empty() == TRUE)
+    device += "#1";
+
   openni_wrapper::OpenNIDriver& driver = openni_wrapper::OpenNIDriver::getInstance ();
-  if (driver.getNumberDevices () == 0) 
+  if (driver.getNumberDevices () == 0 && filename.empty()) 
   {
-    cout << "No devices connected." << endl;
+    cout << "No devices connected. No filename." << endl;
     return 1;
   }
 
-  pcl::OpenNIGrabber grabber (arg);
-  if (grabber.providesCallback<pcl::OpenNIGrabber::sig_cb_openni_point_cloud_rgba> ())
-  {
-    PclPyramid v (arg);
-    v.run ();
-  }
-  else
-  {
-    cerr << "not color device" << endl;
-    return 1;
-  }
+  PclPyramid v (device, filename);
+  v.run ();
 
   return (0);
 }
