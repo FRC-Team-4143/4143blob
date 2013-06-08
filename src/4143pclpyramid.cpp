@@ -108,7 +108,9 @@ class PclPyramid
         CloudConstPtr empty_cloud;
 
 
-        cout << "\n\n\n\n======Start of frame===========\n\n\n";
+        cout << "===============================\n"
+                "======Start of frame===========\n"
+                "===============================\n";
         //cerr << "cloud size orig: " << cloud_->size() << endl;
         voxel_grid.setInputCloud (cloud_);
         voxel_grid.filter (*temp_cloud);  // filter cloud for z depth
@@ -121,6 +123,7 @@ class PclPyramid
         pcl::ModelCoefficients model;
         model.values.resize (6);
         pcl::PointIndices::Ptr line_inliers (new pcl::PointIndices ());
+        std::vector<Eigen::Vector3f> corners;
 
         if(temp_cloud->size() > MIN_CLOUD_POINTS) {
           plane_seg.setInputCloud (temp_cloud);
@@ -129,12 +132,12 @@ class PclPyramid
 
         //cerr << "plane inliers size: " << plane_inliers->indices.size() << endl;
 
-        //cerr << "planecoeffs: " 
-        //    << planecoefficients->values[0]  << " "
-        //    << planecoefficients->values[1]  << " "
-        //    << planecoefficients->values[2]  << " "
-        //    << planecoefficients->values[3]  << " "
-        //    << endl;
+        cout << "planecoeffs: " 
+            << planecoefficients->values[0]  << " "
+            << planecoefficients->values[1]  << " "
+            << planecoefficients->values[2]  << " "
+            << planecoefficients->values[3]  << " "
+            << endl;
 
         Eigen::Vector3f pn = Eigen::Vector3f(
             planecoefficients->values[0],
@@ -216,18 +219,19 @@ class PclPyramid
               linecoefficients1[i].values[4],
               linecoefficients1[i].values[5]); 
 
+          Eigen::Vector3f lp = Eigen::Vector3f(
+              linecoefficients1[i].values[0],
+              linecoefficients1[i].values[1],
+              linecoefficients1[i].values[2]); 
+
           float r = pn.dot(lv);
           float deg = pcl::rad2deg(acos(r));
 
           cout << "angle of line to floor normal: " << deg << " degrees" << endl;
 
-          if(abs(deg-30) < 5) 
+          if(abs(deg-30) < 5 || abs(deg-150) < 5) 
           {
             cout << "found corner line" << endl;
-            Eigen::Vector3f lp = Eigen::Vector3f(
-              linecoefficients1[i].values[0],
-              linecoefficients1[i].values[1],
-              linecoefficients1[i].values[2]); 
 
             float t = -(lp.dot(pn) + planecoefficients->values[3])/ r;
             Eigen::Vector3f intersect = lp + lv*t;
@@ -235,14 +239,44 @@ class PclPyramid
             cout << "straight line distance from camera to corner: " <<
                 intersect.norm() << " meters" << endl;
 
+            corners.push_back(intersect);
 
+            Eigen::Vector3f floor_distance = intersect + pn;  // should be - ???
+
+            cout << "distance along floor to corner: " <<
+                floor_distance.norm() << " meters" << endl;
           }
           else if(abs(deg-90) < 5) 
           {
             cout << "found horizontal line" << endl;
           }
 
-          
+        }
+
+        switch(corners.size())
+        {
+          case 2:
+            cout << "distance between corners " << (corners[0] - corners[1]).norm() << endl;
+            cout << "angle of pyramid to camera " <<
+                pcl::rad2deg(acos(((corners[0] - corners[1]).normalized()).dot(Eigen::Vector3f::UnitX())))
+                << endl;
+
+            break;
+
+          case 3:
+            cout << "distance between corners " << (corners[0] - corners[1]).norm() << endl;
+            cout << "distance between corners " << (corners[0] - corners[2]).norm() << endl;
+            cout << "distance between corners " << (corners[1] - corners[2]).norm() << endl;
+
+            cout << "angle of corner on floor (should be 90) " <<
+                pcl::rad2deg(acos((corners[0] - corners[1]).dot(corners[0] - corners [2])))
+                << endl;
+            
+            cout << "angle of pyramid to camera " <<
+                pcl::rad2deg(acos(((corners[0] - corners[1]).normalized()).dot(Eigen::Vector3f::UnitX())))
+                << endl;
+
+            break;
         }
 
         if (saveCloud)
@@ -324,8 +358,9 @@ class PclPyramid
           boost::this_thread::sleep (boost::posix_time::microseconds (10000));
         }
 
-        if(interface)
+        if(filename_.empty()) {
           interface->stop ();
+        }
       }
 
 #ifndef NOVIEWER
