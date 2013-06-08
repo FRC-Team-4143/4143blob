@@ -17,6 +17,7 @@
 #include <pcl/filters/extract_indices.h>
 #include <4143pclpyramid.h>
 #include <pcl/common/time.h>
+#include <pcl/common/impl/angles.hpp>
 
 
 class PclPyramid
@@ -106,11 +107,13 @@ class PclPyramid
         CloudPtr temp_cloud5 (new Cloud);
         CloudConstPtr empty_cloud;
 
-        cerr << "cloud size orig: " << cloud_->size() << endl;
+
+        cout << "\n\n\n\n======Start of frame===========\n\n\n";
+        //cerr << "cloud size orig: " << cloud_->size() << endl;
         voxel_grid.setInputCloud (cloud_);
         voxel_grid.filter (*temp_cloud);  // filter cloud for z depth
 
-        cerr << "cloud size postzfilter: " << temp_cloud->size() << endl;
+        //cerr << "cloud size postzfilter: " << temp_cloud->size() << endl;
 
         pcl::ModelCoefficients::Ptr planecoefficients (new pcl::ModelCoefficients ());
         pcl::PointIndices::Ptr plane_inliers (new pcl::PointIndices ());
@@ -124,14 +127,24 @@ class PclPyramid
           plane_seg.segment (*plane_inliers, *planecoefficients); // find plane
         }
 
-        cerr << "plane inliers size: " << plane_inliers->indices.size() << endl;
+        //cerr << "plane inliers size: " << plane_inliers->indices.size() << endl;
 
-        cerr << "planecoeffs: " 
-            << planecoefficients->values[0]  << " "
-            << planecoefficients->values[1]  << " "
-            << planecoefficients->values[2]  << " "
-            << planecoefficients->values[3]  << " "
-            << endl;
+        //cerr << "planecoeffs: " 
+        //    << planecoefficients->values[0]  << " "
+        //    << planecoefficients->values[1]  << " "
+        //    << planecoefficients->values[2]  << " "
+        //    << planecoefficients->values[3]  << " "
+        //    << endl;
+
+        Eigen::Vector3f pn = Eigen::Vector3f(
+            planecoefficients->values[0],
+            planecoefficients->values[1],
+            planecoefficients->values[2]);
+
+        float planedeg = pcl::rad2deg(acos(pn.dot(Eigen::Vector3f::UnitZ())));
+        cout << "angle of camera to floor normal: " << planedeg << " degrees" << endl;
+        cout << "distance of camera to floor: " << planecoefficients->values[3]
+            << " meters" <<  endl;
 
         plane_extract.setNegative (true); 
         plane_extract.setInputCloud (temp_cloud);
@@ -151,12 +164,12 @@ class PclPyramid
         for(size_t j = 0 ; j < MAX_LINES && temp_cloud2->size() > MIN_CLOUD_POINTS; j++) 
           // look for x lines until cloud gets too small
         {
-          cerr << "cloud size: " << temp_cloud2->size() << endl;
+//          cerr << "cloud size: " << temp_cloud2->size() << endl;
 
           line_seg.setInputCloud (temp_cloud2);
           line_seg.segment (*line_inliers, model); // find line
 
-          cerr << "line inliears size: " << line_inliers->indices.size() << endl;
+ //         cerr << "line inliears size: " << line_inliers->indices.size() << endl;
 
           if(line_inliers->indices.size() < MIN_CLOUD_POINTS)
             break;
@@ -185,16 +198,51 @@ class PclPyramid
 
         }
 
+        cout << "found " << linecoefficients1.size() << " lines." << endl;
+
         for(size_t i = 0; i < linecoefficients1.size(); i++)
         {
-          cerr << "linecoeffs: " << i  << " "
-              << linecoefficients1[i].values[0]  << " "
-              << linecoefficients1[i].values[1]  << " "
-              << linecoefficients1[i].values[2]  << " "
-              << linecoefficients1[i].values[3]  << " "
-              << linecoefficients1[i].values[4]  << " "
-              << linecoefficients1[i].values[5]  << " "
-              << endl;
+          //cerr << "linecoeffs: " << i  << " "
+          //    << linecoefficients1[i].values[0]  << " "
+          //    << linecoefficients1[i].values[1]  << " "
+          //    << linecoefficients1[i].values[2]  << " "
+          //    << linecoefficients1[i].values[3]  << " "
+          //    << linecoefficients1[i].values[4]  << " "
+          //    << linecoefficients1[i].values[5]  << " "
+          //    << endl;
+
+          Eigen::Vector3f lv = Eigen::Vector3f(
+              linecoefficients1[i].values[3],
+              linecoefficients1[i].values[4],
+              linecoefficients1[i].values[5]); 
+
+          float r = pn.dot(lv);
+          float deg = pcl::rad2deg(acos(r));
+
+          cout << "angle of line to floor normal: " << deg << " degrees" << endl;
+
+          if(abs(deg-30) < 5) 
+          {
+            cout << "found corner line" << endl;
+            Eigen::Vector3f lp = Eigen::Vector3f(
+              linecoefficients1[i].values[0],
+              linecoefficients1[i].values[1],
+              linecoefficients1[i].values[2]); 
+
+            float t = -(lp.dot(pn) + planecoefficients->values[3])/ r;
+            Eigen::Vector3f intersect = lp + lv*t;
+            cout << "corner intersects floor at: " << endl << intersect << endl;
+            cout << "straight line distance from camera to corner: " <<
+                intersect.norm() << " meters" << endl;
+
+
+          }
+          else if(abs(deg-90) < 5) 
+          {
+            cout << "found horizontal line" << endl;
+          }
+
+          
         }
 
         if (saveCloud)
@@ -249,7 +297,7 @@ class PclPyramid
         {
           pcd_cloud.reset (new sensor_msgs::PointCloud2);
           if(pcd.read (filename_, *pcd_cloud, origin, orientation, version) < 0)
-            cerr << "file read failed" << endl;
+            cout << "file read failed" << endl;
           filecloud.reset (new Cloud);
           pcl::fromROSMsg(*pcd_cloud, *filecloud);
           cloud_  = filecloud;
@@ -307,7 +355,7 @@ class PclPyramid
 void
 usage (char ** argv)
 {
-  std::cout << "usage: " << argv[0] << " <device_id> <options>\n\n";
+  std::cout << "usage: " << argv[0] << " <-device device_id> <-file filename.pcd>\n\n";
 
   openni_wrapper::OpenNIDriver& driver = openni_wrapper::OpenNIDriver::getInstance ();
   if (driver.getNumberDevices () > 0)
@@ -331,7 +379,8 @@ main (int argc, char ** argv)
   std::string filename;
   std::string device;
 
-  if (argv[1] == "--help" || argv[1] == "-h")
+  if ( pcl::console::find_switch(argc, argv, "--help") || 
+      pcl::console::find_switch(argc, argv, "-h"))
   {
     usage (argv);
     return 1;
