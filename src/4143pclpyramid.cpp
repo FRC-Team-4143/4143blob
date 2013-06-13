@@ -337,26 +337,28 @@ class PclPyramid
           cloud_  = filecloud;
         }
 
-        while (
-#ifndef NOVIEWER
-              !viewer.wasStopped () 
-#else 
-              TRUE
-#endif
-              )
+
+#ifdef NOVIEWER        
+        if(!filename_.empty()) 
+          get();
+        else 
+          while(TRUE)
+          {
+            if (cloud_)
+              get();
+            boost::this_thread::sleep (boost::posix_time::microseconds (10000));
+          }
+#else
+        while ( !viewer.wasStopped () )
         {
           if (cloud_)
           {
             //the call to get() sets the cloud_ to null;
-#ifndef NOVIEWER
             viewer.showCloud (get ());
-#else
-            get();
-#endif
           }
-          //viewer.spinOnce(100);
           boost::this_thread::sleep (boost::posix_time::microseconds (10000));
         }
+#endif
 
         if(filename_.empty()) {
           interface->stop ();
