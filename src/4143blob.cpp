@@ -15,21 +15,22 @@
 #include <pcl/segmentation/sac_segmentation.h>
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/filters/extract_indices.h>
-#include <4143pclpyramid.h>
+#include <4143blob.h>
 #include <pcl/common/time.h>
 #include <pcl/common/impl/angles.hpp>
+#include <pcl/conversions.h>
 
 
-class PclPyramid
+class PclBlob
 {
  public:
   typedef pcl::PointCloud<pcl::PointXYZRGBA> Cloud;
   typedef typename Cloud::Ptr CloudPtr;
   typedef typename Cloud::ConstPtr CloudConstPtr;
 
-  PclPyramid (const std::string& device_id = "", const std::string& filename = "" ) :
+  PclBlob (const std::string& device_id = "", const std::string& filename = "" ) :
 #ifndef NOVIEWER
-      viewer ("4143 pcl pyramid"),
+      viewer ("4143 pcl blob"),
 #endif
       device_id_ (device_id) , filename_ (filename)
       {
@@ -50,7 +51,7 @@ class PclPyramid
         line_seg.setDistanceThreshold (LINE_THRESHOLD); // find line within ...
 
 #ifndef NOVIEWER
-        viewer.registerKeyboardCallback(&PclPyramid::keyboard_callback, *this , 0);
+        viewer.registerKeyboardCallback(&PclBlob::keyboard_callback, *this , 0);
 #endif
         saveCloud = false;
         toggleView = 0;
@@ -164,6 +165,7 @@ class PclPyramid
           // tint found plane green for ground
         }
 
+/*
         for(size_t j = 0 ; j < MAX_LINES && temp_cloud2->size() > MIN_CLOUD_POINTS; j++) 
           // look for x lines until cloud gets too small
         {
@@ -257,7 +259,7 @@ class PclPyramid
         {
           case 2:
             cout << "distance between corners " << (corners[0] - corners[1]).norm() << endl;
-            cout << "angle of pyramid to camera " <<
+            cout << "angle of blob to camera " <<
                 pcl::rad2deg(acos(((corners[0] - corners[1]).normalized()).dot(Eigen::Vector3f::UnitX())))
                 << endl;
 
@@ -272,12 +274,13 @@ class PclPyramid
                 pcl::rad2deg(acos((corners[0] - corners[1]).dot(corners[0] - corners [2])))
                 << endl;
             
-            cout << "angle of pyramid to camera " <<
+            cout << "angle of blob to camera " <<
                 pcl::rad2deg(acos(((corners[0] - corners[1]).normalized()).dot(Eigen::Vector3f::UnitX())))
                 << endl;
 
             break;
         }
+*/
 
         if (saveCloud)
         {
@@ -322,18 +325,18 @@ class PclPyramid
         if(filename_.empty()) {
           interface = new pcl::OpenNIGrabber (device_id_);
 
-          boost::function<void (const CloudConstPtr&)> f = boost::bind (&PclPyramid::cloud_cb_, this, _1);
+          boost::function<void (const CloudConstPtr&)> f = boost::bind (&PclBlob::cloud_cb_, this, _1);
           boost::signals2::connection c = interface->registerCallback (f);
 
           interface->start ();
         }
         else 
         {
-          pcd_cloud.reset (new sensor_msgs::PointCloud2);
+          pcd_cloud.reset (new pcl::PCLPointCloud2);
           if(pcd.read (filename_, *pcd_cloud, origin, orientation, version) < 0)
             cout << "file read failed" << endl;
           filecloud.reset (new Cloud);
-          pcl::fromROSMsg(*pcd_cloud, *filecloud);
+          pcl::fromPCLPointCloud2(*pcd_cloud, *filecloud);
           cloud_  = filecloud;
         }
 
@@ -378,7 +381,7 @@ class PclPyramid
   Eigen::Vector4f origin;
   Eigen::Quaternionf orientation;
   int version; 
-  sensor_msgs::PointCloud2::Ptr pcd_cloud;
+  pcl::PCLPointCloud2::Ptr pcd_cloud;
 
   std::string device_id_;
   std::string filename_;
@@ -443,7 +446,7 @@ main (int argc, char ** argv)
     return 1;
   }
 
-  PclPyramid v (device, filename);
+  PclBlob v (device, filename);
   v.run ();
 
   return (0);
